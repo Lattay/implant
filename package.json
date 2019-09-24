@@ -1,0 +1,6 @@
+{
+    "name": "implant",
+    "version": "v0.0.1",
+    "description": "Implant is not a package manager",
+    "scripts": ["implant" ]
+}
