@@ -155,9 +155,9 @@ remove(){
 
 help(){
     case ${1:-} in
-        install)
+        get)
             echo "Usage:"
-            echo " install REPO"
+            echo " get REPO"
             ;;
         update)
             echo "Usage:"
@@ -170,6 +170,18 @@ help(){
         help)
             echo "Usage:"
             echo " help CMD"
+            ;;
+        list)
+            echo "Usage:"
+            echo " list"
+            ;;
+        *)
+            echo "Commands:"
+            echo " get"
+            echo " update"
+            echo " remove"
+            echo " list"
+            echo " help"
             ;;
     esac
 }
@@ -201,6 +213,9 @@ case $cmd in
             exit 1
         fi
         remove "$@"
+        ;;
+    list)
+        sed 's#\(.*\)/\(.*\)#\2 -> \1#' <$WAREHOUSE/index
         ;;
     *)
         help "$@"
