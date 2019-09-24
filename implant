@@ -12,11 +12,18 @@ error(){
 }
 
 make_link(){
-    echo "$2=$1" 
+    local name=$1
+    local path=$2
+    echo "$name=$path"
 }
 
 get_link(){
-    grep "^$(sed 's/\./\\./g' <<<$1)" <$WAREHOUSE/index
+    local link=$(grep "^$(sed 's/\./\\./g' <<<$1)" <$WAREHOUSE/index)
+    if [[ -z "$link" ]]
+    then
+        error "Package $1 is not in index."
+    fi
+    echo $link
 }
 
 get_path(){
@@ -92,7 +99,7 @@ install_pkg(){
 
     link_scripts $path || true
 
-    echo $(make_link $path $name) >> $WAREHOUSE/index
+    echo $(make_link $name $path) >> $WAREHOUSE/index
     echo "Package installed as $name"
 }
 
@@ -109,6 +116,10 @@ install(){
 update(){
     local name=$1
     local path=$(get_path $1)
+    if [[ ! -e "$path" ]]
+    then
+        error "The package $name is not installed."
+    fi
 
     clean_links "$path"
     cd $path
@@ -116,24 +127,34 @@ update(){
     link_scripts $path
 }
 
+dir(){
+    local name=$1
+    local path=$(get_path $1)
+    if [[ ! -e "$path" ]]
+    then
+        error "The package $name is not installed in $path."
+    fi
+
+    echo $path
+}
+
 
 remove(){
     local name=$1
     local path=$(get_path $1)
-    local pkg=$path/package.json
-
-    if [[ ! -e $pkg ]]
+    if [[ ! -e "$path" ]]
     then
-        error "This package does not seem to be installed."
-    else
-        echo "Package $name at $path will be removed."
-        echo "Continue ? [y/N]"
-        local rep
-        read rep
-        if [[ ! "$rep" =~ '[Yy]\(es\)*' ]]
-        then
-            error "Aborted."
-        fi
+        error "The package $name is not installed."
+    fi
+
+    local pkg=$path/package.json
+    echo "Package $name at $path will be removed."
+    echo "Continue ? [y/N]"
+    local rep
+    read rep
+    if [[ ! "$rep" =~ '[Yy]\(es\)*' ]]
+    then
+        error "Aborted."
     fi
 
     local i=0
@@ -171,11 +192,16 @@ help(){
             echo "Usage:"
             echo " list"
             ;;
+        dir)
+            echo "Usage:"
+            echo " dir NAME"
+            ;;
         *)
             echo "Commands:"
             echo " get"
             echo " update"
             echo " remove"
+            echo " dir"
             echo " list"
             echo " help"
             ;;
@@ -209,6 +235,9 @@ case $cmd in
             exit 1
         fi
         remove "$@"
+        ;;
+    dir)
+        dir "$@"
         ;;
     list)
         sed 's#\(.*\)=\(.*\)#\2 -> \1#' <$WAREHOUSE/index
