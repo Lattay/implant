@@ -1,0 +1,204 @@
+#!/bin/bash
+
+set -euo pipefail
+
+WAREHOUSE=$HOME/.local/share/implant
+BIN_DIR=$HOME/.local/bin
+[[ -d $WAREHOUSE ]] || mkdir -p $WAREHOUSE
+
+error(){
+    echo "$@" >&2
+    exit 1
+}
+
+make_link(){
+    echo "$1=$2" 
+}
+
+get_link(){
+    grep "^$(sed 's/\./\\./g' <<<$1)" <$WAREHOUSE/index
+}
+
+get_name(){
+    cut -d"=" -f2- <<<$(get_link $1)
+}
+
+get_path(){
+    cut -d"=" -f1 <<<$(get_link $1)
+}
+
+is_github_path(){
+    grep -v "[:@]" <<<${1:-} | grep -q "^[^/]*/[^/]*$"
+}
+
+pull(){
+    local path=$1
+    if is_github_path $path
+    then
+        local name=$(basename $path)
+        if [[ -e $WAREHOUSE/$name ]]
+        then
+            local name=$(sed "s#/#_#g" <<<$path)
+        fi
+        git clone https://github.com/$path $WAREHOUSE/$name
+        echo $WAREHOUSE/$name
+    else
+        local name=$(basename $path)
+        if [[ -e $WAREHOUSE/$name ]]
+        then
+            local name=$(sed "s#/#_#g" <<<$path)
+        fi
+        git clone $path $WAREHOUSE/$name
+        echo $WAREHOUSE/$name
+    fi
+}
+
+clean_links(){
+    local path=$1
+    local pkg=$path/package.json
+    local i=0
+    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    while [[ "$script" != "null" ]]
+    do
+        local bin_name=$(basename "$script")
+        rm $BIN_DIR/$bin_name
+        local i=$((i+1))
+        local script=$(jq .scripts <$pkg | jq -r .[$i])
+    done
+}
+
+link_scripts(){
+    local path=$1
+    local pkg=$path/package.json
+    local i=0
+    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    while [[ "$script" != "null" ]]
+    do
+        local bin_name=$(basename "$script")
+        ln -s $path/$script $BIN_DIR/$bin_name
+        local i=$((i+1))
+        local script=$(jq .scripts <$pkg | jq -r .[$i])
+    done
+}
+
+install_pkg(){
+    local path=$1
+    local pkg=$path/package.json
+    if [[ ! -e "$pkg" ]]
+    then
+        error "There is no package.json in $path."
+    fi
+    local name=$(jq -r .name <$pkg)
+
+    link_scripts $path
+
+    echo $(make_link $path $name) >> $WAREHOUSE/index
+    echo "Package installed as $name"
+}
+
+install(){
+    if [[ -z "${1:-}" ]]
+    then
+        help
+        return 1
+    fi
+    local path=$(pull $1)
+    install_pkg $path
+}
+
+update(){
+    local name=$1
+    local path=$(get_path $1)
+
+    clean_links $path
+    cd $path
+    git pull
+    link_scripts $path
+}
+
+
+remove(){
+    local name=$1
+    local path=$(get_path $1)
+    local pkg=$path/package.json
+
+    if [[ ! -e $pkg ]]
+    then
+        error "This package does not seem to be installed."
+    else
+        echo "Package $name at $path will be removed."
+        echo "Continue ? [y/N]"
+        local rep
+        read rep
+        if [[ ! "$rep" =~ '[Yy]\(es\)*' ]]
+        then
+            error "Aborted."
+        fi
+    fi
+
+    local i=0
+    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    while [[ "$script" != "null" ]]
+    do
+        local bin_name=$(basename "$script")
+        rm $BIN_DIR/$bin_name
+        local i=$((i+1))
+        local script=$(jq .scripts <$pkg | jq -r .[$i])
+    done
+    rm -rf $WAREHOUSE/$name
+    sed "/$name/d" -i $WAREHOUSE/index
+}
+
+help(){
+    case ${1:-} in
+        install)
+            echo "Usage:"
+            echo " install REPO"
+            ;;
+        update)
+            echo "Usage:"
+            echo " update NAME"
+            ;;
+        remove)
+            echo "Usage:"
+            echo " remove NAME"
+            ;;
+        help)
+            echo "Usage:"
+            echo " help CMD"
+            ;;
+    esac
+}
+
+cmd=${1:-}
+shift || true
+
+case $cmd in
+    get)
+        install "$@"
+        if [[ -z "${1:-}" ]]
+        then
+            help get
+            exit 1
+        fi
+        ;;
+    update)
+        update "$@"
+        if [[ -z "${1:-}" ]]
+        then
+            help update
+            exit 1
+        fi
+        ;;
+    remove)
+        if [[ -z "${1:-}" ]]
+        then
+            help remove
+            exit 1
+        fi
+        remove "$@"
+        ;;
+    *)
+        help "$@"
+        ;;
+esac
