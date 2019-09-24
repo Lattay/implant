@@ -56,6 +56,10 @@ pull(){
 clean_links(){
     local path=$1
     local pkg=$path/package.json
+    if [[ ! -e $pkg ]]
+    then
+        error "There is no such file $pkg"
+    fi
     local i=0
     local script=$(jq .scripts <$pkg | jq -r .[$i])
     while [[ "$script" != "null" ]]
@@ -90,7 +94,7 @@ install_pkg(){
     fi
     local name=$(jq -r .name <$pkg)
 
-    link_scripts $path
+    link_scripts $path || true
 
     echo $(make_link $path $name) >> $WAREHOUSE/index
     echo "Package installed as $name"
@@ -110,7 +114,7 @@ update(){
     local name=$1
     local path=$(get_path $1)
 
-    clean_links $path
+    clean_links "$path"
     cd $path
     git pull
     link_scripts $path
