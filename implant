@@ -128,11 +128,16 @@ update(){
 }
 
 dir(){
-    local name=$1
-    local path=$(get_path $1)
-    if [[ ! -e "$path" ]]
+    local name=${1:-}
+    if [[ -z "$name" ]]
     then
-        error "The package $name is not installed in $path."
+        local path=$WAREHOUSE
+    else
+        local path=$(get_path $1)
+        if [[ ! -e "$path" ]]
+        then
+            error "The package $name is not installed in $path."
+        fi
     fi
 
     echo $path
@@ -213,20 +218,20 @@ shift || true
 
 case $cmd in
     get)
-        install "$@"
         if [[ -z "${1:-}" ]]
         then
             help get
             exit 1
         fi
+        install "$@"
         ;;
     update)
-        update "$@"
         if [[ -z "${1:-}" ]]
         then
             help update
             exit 1
         fi
+        update "$@"
         ;;
     remove)
         if [[ -z "${1:-}" ]]
