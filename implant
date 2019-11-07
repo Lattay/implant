@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-WAREHOUSE=$HOME/.local/share/implant
-BIN_DIR=$HOME/.local/bin
-[[ -d $WAREHOUSE ]] || mkdir -p $WAREHOUSE
+WAREHOUSE="$HOME/.local/share/implant"
+BIN_DIR="$HOME/.local/bin"
+[[ -d "$WAREHOUSE" ]] || mkdir -p "$WAREHOUSE"
 
 error(){
     echo "$@" >&2
@@ -12,8 +12,8 @@ error(){
 }
 
 make_link(){
-    local name=$1
-    local path=$2
+    local name="$1"
+    local path="$2"
     echo "$name=$path"
 }
 
@@ -39,71 +39,71 @@ is_github_path(){
 }
 
 pull(){
-    local path=$1
-    if is_github_path $path
+    local path="$1"
+    if is_github_path "$path"
     then
-        local name=$(basename $path)
-        if [[ -e $WAREHOUSE/$name ]]
+        local name="$(basename "$path")"
+        if [[ -e "$WAREHOUSE/$name" ]]
         then
-            local name=$(sed "s#/#_#g" <<<$path)
+            local name="$(sed "s#/#_#g" <<<"$path")"
         fi
-        git clone https://github.com/$path $WAREHOUSE/$name &&
+        git clone "https://github.com/$path" "$WAREHOUSE/$name" &&
             echo $WAREHOUSE/$name
     else
-        local name=$(basename $path)
-        if [[ -e $WAREHOUSE/$name ]]
+        local name="$(basename "$path")"
+        if [[ -e "$WAREHOUSE/$name" ]]
         then
-            local name=$(sed "s#/#_#g" <<<$path)
+            local name="$(sed "s#/#_#g" <<<"$path")"
         fi
-        git clone $path $WAREHOUSE/$name &&
-            echo $WAREHOUSE/$name
+        git clone "$path" "$WAREHOUSE/$name" &&
+            echo "$WAREHOUSE/$name"
     fi
 }
 
 clean_links(){
-    local path=$1
-    local pkg=$path/package.json
-    if [[ ! -e $pkg ]]
+    local path="$1"
+    local pkg="$path/package.json"
+    if [[ ! -e "$pkg" ]]
     then
         error "There is no such file $pkg"
     fi
     local i=0
-    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     while [[ "$script" != "null" ]]
     do
         local bin_name=$(basename "$script")
-        rm $BIN_DIR/$bin_name
+        rm "$BIN_DIR/$bin_name"
         local i=$((i+1))
-        local script=$(jq .scripts <$pkg | jq -r .[$i])
+        local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     done
 }
 
 link_scripts(){
-    local path=$1
-    local pkg=$path/package.json
+    local path="$1"
+    local pkg="$path/package.json"
     local i=0
-    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     while [[ "$script" != "null" ]]
     do
-        local bin_name=$(basename "$script")
-        ln -s $path/$script $BIN_DIR/$bin_name
+        local bin_name="$(basename "$script")"
+        ln -s "$path/$script" "$BIN_DIR/$bin_name"
         local i=$((i+1))
-        local script=$(jq .scripts <$pkg | jq -r .[$i])
+        local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     done
 }
 
 install_pkg(){
-    local path=$1
-    local pkg=$path/package.json
+    local path="$1"
+    local pkg="$path/package.json"
     if [[ ! -e "$pkg" ]]
     then
         error "There is no package.json in $path."
     fi
-    local name=$(jq -r .name <$pkg)
+    local name="$(jq -r .name <"$pkg")"
 
-    link_scripts $path || true
+    link_scripts "$path" || true
 
-    echo $(make_link $name $path) >> $WAREHOUSE/index
+    echo "$(make_link "$name" "$path")" >> "$WAREHOUSE/index"
     echo "Package installed as $name"
 }
 
@@ -113,31 +113,32 @@ install(){
         help
         return 1
     fi
-    local path=$(pull $1)
+    local path="$(pull "$1")"
     [[ -n "$path" ]] ||
         error "Unable to clone repository."
-    install_pkg $path
+    install_pkg "$path"
 }
 
 update(){
-    local name=$1
-    local path=$(get_path $1)
+    local name="$1"
+    local path="$(get_path "$1")"
     [[ -e "$path" ]] ||
         error "The package $name is not installed."
 
     clean_links "$path"
     cd $path || error "$path does not exist."
     git pull || error "Cannot pull modifications."
-    link_scripts $path || error "Error while link scripts."
+    link_scripts "$path" ||
+        error "Error while link scripts."
 }
 
 dir(){
-    local name=${1:-}
+    local name="${1:-}"
     if [[ -z "$name" ]]
     then
-        local path=$WAREHOUSE
+        local path="$WAREHOUSE"
     else
-        local path=$(get_path $1)
+        local path="$(get_path "$1")"
         if [[ ! -e "$path" ]]
         then
             error "The package $name is not installed in $path."
@@ -149,12 +150,12 @@ dir(){
 
 
 remove(){
-    local name=$1
-    local path=$(get_path $1)
+    local name="$1"
+    local path="$(get_path "$1")"
     [[ -e "$path" ]] ||
         error "The package $name is not installed."
 
-    local pkg=$path/package.json
+    local pkg="$path/package.json"
     echo "Package $name at $path will be removed."
     echo "Continue ? [y/N]"
     local rep
@@ -163,20 +164,20 @@ remove(){
         error "Aborted."
 
     local i=0
-    local script=$(jq .scripts <$pkg | jq -r .[$i])
+    local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     while [[ "$script" != "null" ]]
     do
-        local bin_name=$(basename "$script")
-        rm $BIN_DIR/$bin_name
+        local bin_name="$(basename "$script")"
+        rm "$BIN_DIR/$bin_name"
         local i=$((i+1))
-        local script=$(jq .scripts <$pkg | jq -r .[$i])
+        local script="$(jq .scripts <"$pkg" | jq -r ".[$i]")"
     done
-    rm -rf $WAREHOUSE/$name
-    remove_link $name
+    rm -rf "$WAREHOUSE/$name"
+    remove_link "$name"
 }
 
 help(){
-    case ${1:-} in
+    case "${1:-}" in
         get)
             echo "Usage:"
             echo " get REPO"
@@ -213,10 +214,10 @@ help(){
     esac
 }
 
-cmd=${1:-}
+cmd="${1:-}"
 shift || true
 
-case $cmd in
+case "$cmd" in
     get)
         if [[ -z "${1:-}" ]]
         then
@@ -245,7 +246,7 @@ case $cmd in
         dir "$@"
         ;;
     list)
-        sed 's#\(.*\)=\(.*\)#\2 -> \1#' <$WAREHOUSE/index
+        sed 's#\(.*\)=\(.*\)#\2 -> \1#' <"$WAREHOUSE/index"
         ;;
     *)
         help "$@"
